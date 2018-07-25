@@ -1,0 +1,23 @@
+max_eta = 4
+
+max_eta_jet = 3
+
+jet_algorithm = 2
+
+R = 0.7
+
+distance type = deltaR
+
+max_distance_CS = 0.05
+
+max_distance_ICS = 0.3 0.3
+
+alpha_CS = 0
+
+alpha_ICS = 1 1
+
+ghost_area = 0.01
+
+bge_grid_spacing = 0.5
+
+Set_common_bge_for_rho_and_rhom (Y/N): Y
