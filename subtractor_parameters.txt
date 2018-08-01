@@ -1,0 +1,14 @@
+max_eta = 2.5
+max_eta_jet = 2.1
+jet_algorithm = 2
+R = 0.4
+distance type = deltaR
+max_distance_CS = 0.25
+max_distance_ICS = 0.15 0.2
+alpha_CS = 0
+alpha_ICS = 0 0
+remove_remaining_proxies = 0
+SK_grid = 0.6
+ghost_area = 0.01
+bge_grid_spacing = 0.5
+Set_common_bge_for_rho_and_rhom (Y/N): Y
