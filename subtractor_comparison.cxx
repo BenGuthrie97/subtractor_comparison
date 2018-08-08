@@ -35,6 +35,8 @@ vector< vector<double> > get_coors(vector< vector<double> > params);
 
 vector<int> adjust_excess(vector< vector<int> > key, vector<int> excesses);
 
+int adjust_excess(vector< vector<int> > key, int excesses);
+
 vector<string> write_results(vector< vector<int> > key, vector< vector<double> > sigs, vector< vector<double> > params, int type);
 
 int findNHardest(vector<PseudoJet> full_event, JetDefinition jet_def, double max_eta_jet);
@@ -43,6 +45,7 @@ vector< vector<int> > match_jets(vector< vector<double> > hard_coors, vector< ve
 vector< vector<int> > match_all_jets(vector< vector<double> > signal_coors, vector< vector<double> > CS_coors, vector< vector<double> > ICS_coors);
 vector< vector<int> > match_some_jets(vector< vector<double> > signal_coors, vector< vector<double> > full_coors);
 void print_coors(vector< vector<double> > coors);
+void print_key(vector< vector<int> > key);
 double R_dist(vector<double> point1, vector<double> point2);
 double phi_dist(double phi1, double phi2);
 double phi_dist_alt(double phi1, double phi2);
@@ -147,6 +150,12 @@ int main(){
   vector<string> cluster_data;
   int ncl;
 
+  ofstream ratios;
+  ratios.open("jet_ratios.txt");
+
+  ofstream checks;
+  checks.open("sanity_checks.txt");
+
   //Get cluster data
   while (getline(root_data,cluster)){
     cluster_data = get_pieces(cluster);
@@ -227,7 +236,6 @@ int main(){
     if (j % 100 == 0){
       cout << "Checking event number " << j << endl;
     }
-
     vector<PseudoJet> root_event = root_events[j];
     root_event = SelectorAbsEtaMax(max_eta)(root_event);
 
@@ -338,10 +346,25 @@ int main(){
     //I'll always assume that the signal/hard event has the fewest number of jets.
     //THAT WAS A BAD ASSUMPTION.
     //The key has the indices for matching jets in the order (signal, CS, ICS).
-    vector< vector<int> > matching_key;
-    matching_key = match_all_jets(signal_coors,CS_coors,ICS_coors);
-    vector< vector<int> > matching_key_SK = match_all_jets(signal_coors,CS_SK_coors,ICS_SK_coors);
     vector< vector<int> > matching_key_full = match_some_jets(signal_coors,full_coors);
+    vector< vector<int> > matching_key_CS = match_some_jets(signal_coors, CS_coors);
+    vector< vector<int> > matching_key_ICS = match_some_jets(signal_coors, ICS_coors);
+    vector< vector<int> > matching_key_CSSK = match_some_jets(signal_coors, CS_SK_coors);
+    vector< vector<int> > matching_key_ICSSK = match_some_jets(signal_coors, ICS_SK_coors);
+
+    if(j == 551){
+	cout << "Full key:" << endl;
+	print_key(matching_key_full);
+	cout << "CS key:" << endl;
+	print_key(matching_key_CS);
+	cout << "ICS key:" << endl;
+	print_key(matching_key_ICS);
+	cout << "CSSK key:" << endl;
+	print_key(matching_key_CSSK);
+	cout << "ICSSK key:" << endl;
+	print_key(matching_key_ICSSK);
+
+    }
 
     //With the matching key, write the deviances to the file.
     //Also write the number of excessive jets before the deviances
@@ -360,23 +383,23 @@ int main(){
 	numFull++;
       }
     }
-    for (int i = 0; i < matching_key.size(); i++){
-      if (matching_key[i][1] != -1){
+    for (int i = 0; i < matching_key_CS.size(); i++){
+      if (matching_key_CS[i][1] != -1){
 	numCS++;
       }
     }
-    for (int i = 0; i < matching_key.size(); i++){
-      if (matching_key[i][2] != -1){
+    for (int i = 0; i < matching_key_ICS.size(); i++){
+      if (matching_key_ICS[i][1] != -1){
 	numICS++;
       }
     }
-    for (int i = 0; i < matching_key_SK.size(); i++){
-      if (matching_key_SK[i][2] != -1){
+    for (int i = 0; i < matching_key_CSSK.size(); i++){
+      if (matching_key_CSSK[i][1] != -1){
 	numCSSK++;
       }
     }
-    for (int i = 0; i < matching_key_SK.size(); i++){
-      if (matching_key_SK[i][2] != -1){
+    for (int i = 0; i < matching_key_ICSSK.size(); i++){
+      if (matching_key_ICSSK[i][1] != -1){
 	numICSSK++;
       }
     }
@@ -385,7 +408,7 @@ int main(){
     results << numFull << " " << numCS << " " << numICS << " " << numCSSK << " " << numICSSK << endl;
 
     //Use the keys to adjust excesses for when jets failed to match
-    vector<int> normal_excesses;
+   /* vector<int> normal_excesses;
     normal_excesses.push_back(CS_excess);
     normal_excesses.push_back(ICS_excess);
     vector<int> SK_excesses;
@@ -400,25 +423,17 @@ int main(){
     ICS_excess = normal_excesses[1];
     CS_SK_excess = SK_excesses[0];
     ICS_SK_excess = SK_excesses[1];
+*/
+
+    full_excess = adjust_excess(matching_key_full, full_excess);
+    CS_excess = adjust_excess(matching_key_CS, CS_excess);
+    ICS_excess = adjust_excess(matching_key_ICS, ICS_excess);
+    CS_SK_excess = adjust_excess(matching_key_CSSK, CS_SK_excess);
+    ICS_SK_excess = adjust_excess(matching_key_ICSSK, ICS_SK_excess);
 
     results << full_excess << " " <<  CS_excess << " " << ICS_excess << " " << CS_SK_excess << " " << ICS_SK_excess << endl;
 
     //Now write the signed deviances to the results file, in the order pt, rap, phi, E, m.
-
-    /*cout << "Event number " << j << endl;
-    cout << "Full key: " << endl;
-    for (int i = 0; i < matching_key_full.size(); i++){
-      cout << matching_key_full[i][0] << " " << matching_key_full[i][1] << endl;
-    }
-    cout << "CS/ICS key: " << endl;
-    for (int i = 0; i < matching_key.size(); i++){
-      cout << matching_key[i][0] << " " << matching_key[i][1] << " " << matching_key[i][2] << endl;
-    }
-    cout << "SK key: " << endl;
-    for (int i = 0; i < matching_key_SK.size(); i++){
-      cout << matching_key_SK[i][0] << " " << matching_key_SK[i][1] << " " << matching_key_SK[i][2] << endl;
-    }
-*/
 
     //Write the full ones first
     for (int i = 0; i < matching_key_full.size(); i++){
@@ -431,58 +446,147 @@ int main(){
       }
     }
 
-    //cout << "Wrote full jet results." << endl;
-
     //Then CS
-    for (int i = 0; i < matching_key.size(); i++){
-      int Sigtag = matching_key[i][0];
+    for (int i = 0; i < matching_key_CS.size(); i++){
+      int Sigtag = matching_key_CS[i][0];
       const vector<double> &sigjet = jets_in_event[Sigtag];
-      int jettag = matching_key[i][1];
+      int jettag = matching_key_CS[i][1];
       if (jettag != -1){
         const vector<double> &CSjet = corrected_CS_root_jet_params[jettag];
         results << (CSjet[0] - sigjet[0])/sigjet[0] << " " << (CSjet[1] - sigjet[1])/sigjet[1] << " " << phi_dist_alt(sigjet[2], CSjet[4])/sigjet[2] << " " << (CSjet[2] - sigjet[3])/sigjet[3] << " " << (CSjet[5] - sigjet[4])/sigjet[4] << endl;
       }
     }
 
-    //cout << "Wrote CS results." << endl;
-
     //Then ICS
-    for (int i = 0; i < matching_key.size(); i++){
-      int Sigtag = matching_key[i][0];
+    for (int i = 0; i < matching_key_ICS.size(); i++){
+      int Sigtag = matching_key_ICS[i][0];
       const vector<double> &sigjet = jets_in_event[Sigtag];
-      int jettag = matching_key[i][2];
+      int jettag = matching_key_ICS[i][1];
       if (jettag != -1){
         const vector<double> &ICSjet = corrected_ICS_root_jet_params[jettag];
         results << (ICSjet[0] - sigjet[0])/sigjet[0] << " " << (ICSjet[1] - sigjet[1])/sigjet[1] << " " << phi_dist_alt(sigjet[2], ICSjet[4])/sigjet[2] << " " << (ICSjet[2] - sigjet[3])/sigjet[3] << " " << (ICSjet[5] - sigjet[4])/sigjet[4] << endl;
       }
     }
 
-    //cout << "Wrote ICS results." << endl;
-
     //Then CS_SK
-    for (int i = 0; i < matching_key_SK.size(); i++){
-      int Sigtag = matching_key_SK[i][0];
+    for (int i = 0; i < matching_key_CSSK.size(); i++){
+      int Sigtag = matching_key_CSSK[i][0];
       const vector<double> &sigjet = jets_in_event[Sigtag];
-      int jettag = matching_key_SK[i][1];
+      int jettag = matching_key_CSSK[i][1];
       if (jettag != -1){
         const vector<double> &CSSKjet = corrected_CS_SK_root_jet_params[jettag];
         results << (CSSKjet[0] - sigjet[0])/sigjet[0] << " " << (CSSKjet[1] - sigjet[1])/sigjet[1] << " " << phi_dist_alt(sigjet[2], CSSKjet[4])/sigjet[2] << " " << (CSSKjet[2] - sigjet[3])/sigjet[3] << " " << (CSSKjet[5] - sigjet[4])/sigjet[4] << endl;
       }
     }
 
-    //cout << "Wrote CS_SK results." << endl;
-
     //Then ICS_SK
-    for (int i = 0; i < matching_key_SK.size(); i++){
-      int Sigtag = matching_key_SK[i][0];
+    for (int i = 0; i < matching_key_ICSSK.size(); i++){
+      int Sigtag = matching_key_ICSSK[i][0];
       const vector<double> &sigjet = jets_in_event[Sigtag];
-      int jettag = matching_key_SK[i][2];
+      int jettag = matching_key_ICSSK[i][1];
       if (jettag != -1){
         const vector<double> &ICSSKjet = corrected_ICS_SK_root_jet_params[jettag];
         results << (ICSSKjet[0] - sigjet[0])/sigjet[0] << " " << (ICSSKjet[1] - sigjet[1])/sigjet[1] << " " << phi_dist_alt(sigjet[2], ICSSKjet[4])/sigjet[2] << " " << (ICSSKjet[2] - sigjet[3])/sigjet[3] << " " << (ICSSKjet[5] - sigjet[4])/sigjet[4] << endl;
       }
     }
 
+    //this is an entirely different part of the program, used to make output for jet_ratio_plotter.cxx
+
+    //Now, make some keys for each kind of jet, compared to the FULL jets, not the signal!
+    vector< vector<int> > key_CS = match_some_jets(full_coors, CS_coors);
+    vector< vector<int> > key_ICS = match_some_jets(full_coors, ICS_coors);
+    vector< vector<int> > key_CSSK = match_some_jets(full_coors, CS_SK_coors);
+    vector< vector<int> > key_ICSSK = match_some_jets(full_coors, ICS_SK_coors);
+
+
+    ratios << key_CS.size() << endl;
+    for (int i = 0; i < key_CS.size(); i++){
+      int fulltag = key_CS[i][0];
+      int jettag = key_CS[i][1];
+      if (jettag != -1){
+        const PseudoJet &fulljet = root_jets[fulltag];
+        const vector<double> &CSjet = corrected_CS_root_jet_params[jettag];
+        ratios << CSjet[0]/fulljet.pt() << " " << CSjet[5]/fulljet.m() << endl;
+      }
+    }
+
+
+    ratios << key_ICS.size() << endl;
+    for (int i = 0; i < key_ICS.size(); i++){
+      int fulltag = key_ICS[i][0];
+      int jettag = key_ICS[i][1];
+      if (jettag != -1){
+        const PseudoJet &fulljet = root_jets[fulltag];
+        const vector<double> &ICSjet = corrected_ICS_root_jet_params[jettag];
+        ratios << ICSjet[0]/fulljet.pt() << " " << ICSjet[5]/fulljet.m() << endl;
+      }
+    }
+
+
+    ratios << key_CSSK.size() << endl;
+    for (int i = 0; i < key_CSSK.size(); i++){
+      int fulltag = key_CSSK[i][0];
+      int jettag = key_CSSK[i][1];
+      if (jettag != -1){
+        const PseudoJet &fulljet = root_jets[fulltag];
+        const vector<double> &CSSKjet = corrected_CS_SK_root_jet_params[jettag];
+        ratios << CSSKjet[0]/fulljet.pt() << " " << CSSKjet[5]/fulljet.m() << endl;
+      }
+    }
+
+
+    ratios << key_ICSSK.size() << endl;
+    for (int i = 0; i < key_ICSSK.size(); i++){
+      int fulltag = key_ICSSK[i][0];
+      int jettag = key_ICSSK[i][1];
+      if (jettag != -1){
+        const PseudoJet &fulljet = root_jets[fulltag];
+        const vector<double> &ICSSKjet = corrected_ICS_SK_root_jet_params[jettag];
+        ratios << ICSSKjet[0]/fulljet.pt() << " " << ICSSKjet[5]/fulljet.m() << endl;
+      }
+    }
+
+    //And now we'll do this section for sanity checks.
+    //Go full, CS, ICS, CSSK, ICSSK.
+    //Write the number of jets, then on each line, pt, eta, mass
+    checks << root_jets.size() << endl;
+    for (int i = 0; i < root_jets.size(); i++){
+      checks << root_jets[i].pt() << " " << root_jets[i].eta() << " " << root_jets[i].m() << endl;
+    }
+    checks << corrected_CS_root_jet_params.size() << endl;
+    for (int i = 0; i < corrected_CS_root_jet_params.size(); i++){
+      checks << corrected_CS_root_jet_params[i][0] << " " << corrected_CS_root_jet_params[i][6] << " " << corrected_CS_root_jet_params[i][5] << endl;
+    }
+    checks << corrected_ICS_root_jet_params.size() << endl;
+    for (int i = 0; i < corrected_ICS_root_jet_params.size(); i++){
+      checks << corrected_ICS_root_jet_params[i][0] << " " << corrected_ICS_root_jet_params[i][6] << " " << corrected_ICS_root_jet_params[i][5] << endl;
+    }
+    checks << corrected_CS_SK_root_jet_params.size() << endl;
+    for (int i = 0; i < corrected_CS_SK_root_jet_params.size(); i++){
+      checks << corrected_CS_SK_root_jet_params[i][0] << " " << corrected_CS_SK_root_jet_params[i][6] << " " << corrected_CS_SK_root_jet_params[i][5] << endl;
+    }
+    checks << corrected_ICS_SK_root_jet_params.size() << endl;
+    for (int i = 0; i < corrected_ICS_SK_root_jet_params.size(); i++){
+      checks << corrected_ICS_SK_root_jet_params[i][0] << " " << corrected_ICS_SK_root_jet_params[i][6] << " " << corrected_ICS_SK_root_jet_params[i][5] << endl;
+    }
+
+
+    //cout << "Wrote ICS_SK results." << endl;
+
+//    for (int i = 0; i < jets_in_event.size(); i++){
+//      const vector<double> &jet = jets_in_event[i];
+//      int CS_tag = matching_key[i][1];
+//      const vector<double> &CSjet = corrected_CS_root_jet_params[CS_tag];
+
+//      results << (CSjet[0] - jet[0])/jet[0] << " " << (CSjet[1] - jet[1])/abs(jet[1]) << " " << phi_dist_alt(jet[2],CSjet[4])/abs(jet[2]) << " " << (CSjet[2] - jet[3])/jet[3] << " " << (CSjet[5]-jet[4])/jet[4] << endl;
+//    }
+
+//    for (int i = 0; i < jets_in_event.size(); i++){
+//      const vector<double> &jet = jets_in_event[i];
+//      int ICS_tag = ICS_root_key[i][1];
+//      const vector<double> &ICSjet = corrected_ICS_root_jet_params[ICS_tag]; 
+//      results << (ICSjet[0] - jet[0])/jet[0] << " " << (ICSjet[1] - jet[1])/abs(jet[1]) << " " << phi_dist_alt(jet[2],ICSjet[4])/abs(jet[2]) << " " << (ICSjet[2] - jet[3])/jet[3] << " " << (ICSjet[5]-jet[4])/jet[4] << endl;
+//    }
     //cout << "Wrote ICS_SK results." << endl;
 
 //    for (int i = 0; i < jets_in_event.size(); i++){
@@ -513,6 +617,9 @@ int main(){
   }
 
   results.close();
+  ratios.close();
+  checks.close();
+
   return 0;
 }
 
@@ -558,6 +665,31 @@ vector<int> adjust_excess(vector< vector<int> > key, vector<int> excesses){
 
   return excesses;
 }
+
+int adjust_excess(vector< vector<int> > key, int excess){
+  for (int i = 0; i < key.size(); i++){
+    if (key[i][1] == -1){
+      if (excess > 0){
+	excess = excess + 1;
+      }
+      if (excess < 0){
+         excess = excess - 2;
+      }
+      if (excess == 0){
+	int decide = rand() % 2;
+	if (decide == 0){
+	  excess = excess + 2;
+	}
+	if (decide == 1){
+	  excess = excess - 2;
+	}
+      }
+    }
+  }
+
+  return excess;
+}
+
 
 //vector<string> write_results(vector< vector<int> > key, vector< vector<double> > sigs, vector< vector<double> > params, int type){
 //  vector<string> results;
@@ -625,6 +757,7 @@ vector< vector<double> > ConstituentSubtract(vector<PseudoJet> full_event, doubl
    temp_params.push_back(width(jet));
    temp_params.push_back(jet.phi_std());
    temp_params.push_back(jet.m());
+   temp_params.push_back(jet.eta());
    jet_params.push_back(temp_params);
   }
 
@@ -702,6 +835,7 @@ vector< vector<double> > CS_SK(vector<PseudoJet> full_event, double max_eta, Sel
    temp_params.push_back(width(jet));
    temp_params.push_back(jet.phi_std());
    temp_params.push_back(jet.m());
+   temp_params.push_back(jet.eta());
    jet_params.push_back(temp_params);
   }
   //cout << endl;
@@ -775,6 +909,7 @@ vector< vector<double> > IteratedConstituentSubtract(vector<PseudoJet> full_even
     temp_params.push_back(width(jet));
     temp_params.push_back(jet.phi_std());
     temp_params.push_back(jet.m());
+    temp_params.push_back(jet.eta());
     jet_params.push_back(temp_params);
    // myfile << "pt = " << jet.pt() << ", rap = " << jet.rap() << ", mass = " << jet.m() << ", width = " << width(jet) << endl;
   }
@@ -851,6 +986,7 @@ vector< vector<double> > ICS_SK(vector<PseudoJet> full_event, double max_eta, Se
     temp_params.push_back(width(jet));
     temp_params.push_back(jet.phi_std());
     temp_params.push_back(jet.m());
+    temp_params.push_back(jet.eta());
     jet_params.push_back(temp_params);
   }
 
@@ -963,14 +1099,14 @@ vector< vector<int> > match_all_jets(vector< vector<double> > signal_coors, vect
     double  minDistICS = 1000;
     for (int j = 0; j < signal_coors.size(); j++){
       if (R_dist(jet, signal_coors[j]) < minDistSig){
-	minDistSig = R_dist(jet,signal_coors[j]);
+	minDistSig = R_dist(jet, signal_coors[j]);
 	closest_signal = j;
       }
     }
     for (int j = 0; j < CS_coors.size(); j++){
       if (R_dist(jet, CS_coors[j]) < minDistCS){
 	minDistCS = R_dist(jet,CS_coors[j]);
-        closest_CS = j;
+	closest_CS = j;
       }
     }
     for (int j = 0; j < ICS_coors.size(); j++){
@@ -987,8 +1123,7 @@ vector< vector<int> > match_all_jets(vector< vector<double> > signal_coors, vect
 
     key.push_back(temp);
   }
-
-  //Now that the key is done, I need to prune it of matches jets which are farther
+  //Now that the key is done, I need to prune it of matches which are farther
   //apart than a cutoff
   double cutoff = 0.4;
   vector<int> matches;
@@ -1018,7 +1153,6 @@ vector< vector<int> > match_some_jets(vector< vector<double> > signal_coors, vec
   vector < vector<int> > key;
 
   //Figure out which set of coordinates has the fewest number of jets. All our matching will be centered around those.
-  //I mean, of course full_coors will have more... just keep it as a formality
   vector < vector<double> > min_coors;
   if (signal_coors.size() <= full_coors.size()){
     min_coors = signal_coors;
@@ -1081,6 +1215,15 @@ void print_coors(vector< vector<double> > coors){
   }
   cout << endl;
 }
+
+//Prints out keys, but only the two-entry kind.
+void print_key(vector< vector<int> > key){
+  for (int i = 0; i < key.size(); i++){
+    cout << key[i][0] << " " << key[i][1] << endl;
+  }
+  cout << endl;
+}
+
 
 //Right now, this is set up for phi to be in [-pi,pi].
 double R_dist(vector<double> point1, vector<double> point2){
